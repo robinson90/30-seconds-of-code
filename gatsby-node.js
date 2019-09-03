@@ -1,4 +1,5 @@
 const path = require(`path`);
+const crypto = require(`crypto`);
 const { createFilePath } = require(`gatsby-source-filesystem`);
 const config = require('./config');
 
@@ -111,4 +112,52 @@ exports.onCreateNode = ({ node, actions, getNode }) => {
       value,
     });
   }
+};
+
+exports.createSchemaCustomization = ({ actions }) => {
+  const { createTypes } = actions;
+
+  const typeDefs = `
+    type Snippet implements Node @dontInfer {
+      title: String,
+      html: String,
+      tags: [String],
+      id: String
+    }
+  `
+  createTypes(typeDefs);
+};
+
+exports.sourceNodes = ({ graphql, actions, createNodeId, createContentDigest, getNode, getNodes, getNodesByType }) => {
+  const { createNode } = actions;
+
+  const allMarkdownRemark = getNodesByType('MarkdownRemark');
+  const allSnippetDataJson = getNodesByType('SnippetDataJson').filter(v => v.meta.scope === `./${config.snippetPath}`)[0];
+  const allSnippetArchiveDataJson = getNodesByType('SnippetDataJson').filter(v => v.meta.scope === `./${config.snippetArchivePath}`)[0];
+
+  console.log(allMarkdownRemark[1])
+
+  const snippets = allSnippetDataJson.data.map(snippet => ({
+    title: snippet.title,
+    html: allMarkdownRemark.find(
+      v => v.frontmatter.title === snippet.title,
+    ).html,
+    tags: snippet.attributes.tags,
+    id: snippet.id,
+  }));
+
+  snippets.forEach(snippet => {
+    createNode({
+      id: createNodeId(`snp-${snippet.id}`),
+      parent: null,
+      children: [],
+      internal: {
+        type: `Snippet`,
+        contentDigest: createContentDigest(snippet)
+      },
+      title: snippet.title,
+      html: snippet.html,
+      tags: snippet.tags,
+    });
+  })
 };
